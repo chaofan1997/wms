@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wms
+      POSTGRES_USER: wms
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wms -d wms"]
+      interval: 5s
+      retries: 15
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://wms:${POSTGRES_PASSWORD}@db:5432/wms
+      APP_SECRET: ${APP_SECRET:?Set APP_SECRET}
+      BOOTSTRAP_ADMIN_USER: ${BOOTSTRAP_ADMIN_USER:?Set BOOTSTRAP_ADMIN_USER}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set BOOTSTRAP_ADMIN_PASSWORD}
+      INITIAL_WAREHOUSE_NAME: ${INITIAL_WAREHOUSE_NAME:-一号仓}
+      COOKIE_SECURE: 'false' # localhost HTTP only; set true for HTTPS deployment
+      WMS_UPLOAD_DIR: /app/uploads
+    volumes:
+      - wms_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - '8000'
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '8084:80'
+      # Local test uses HTTP 8083; do not expose HTTPS port
+    environment:
+      WMS_DOMAIN: ${WMS_DOMAIN:?Set WMS_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+volumes:
+  pgdata:
+  wms_uploads:
+  caddy_data:
+  caddy_config:

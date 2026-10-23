@@ -1,0 +1,4 @@
+*.txt
+.env
+.env.example
+backups/
